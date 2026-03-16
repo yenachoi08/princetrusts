@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Approval Memo Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 640px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.09);
+      overflow: hidden;
+    }
+
+    .top-bar {
+      background: #1e3a5f;
+      padding: 22px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .top-bar-icon {
+      background: rgba(255,255,255,0.15);
+      border-radius: 10px;
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .top-bar h1 { color: white; font-size: 19px; font-weight: 700; }
+    .top-bar p  { color: rgba(255,255,255,0.65); font-size: 13px; margin-top: 2px; }
+
+    .body { padding: 24px 28px; }
+
+    .step-label {
+      font-size: 13px; font-weight: 700; color: #1e3a5f;
+      margin-bottom: 14px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .badge {
+      background: #1e3a5f; color: white;
+      border-radius: 50%; width: 20px; height: 20px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px; flex-shrink: 0;
+    }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .field-label {
+      display: block; font-size: 12px; font-weight: 700; color: #64748b;
+      letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px;
+    }
+
+    input[type="text"] {
+      width: 100%; padding: 9px 12px;
+      border-radius: 8px; border: 1.5px solid #e2e8f0;
+      font-size: 14px; color: #1e293b;
+      outline: none; transition: border-color 0.15s;
+      font-family: inherit;
+    }
+    input[type="text"]:focus { border-color: #3b82f6; }
+
+    .divider { border-top: 1.5px solid #f1f5f9; margin: 22px 0; }
+
+    .dropzone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      background: #f8fafc;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: #3b82f6; background: #eff6ff; }
+    .dropzone.loaded { border-color: #22c55e; background: #f0fdf4; }
+    .dropzone-icon  { font-size: 32px; margin-bottom: 8px; }
+    .dropzone-title { font-weight: 700; color: #1e3a5f; font-size: 14px; }
+    .dropzone-sub   { color: #64748b; font-size: 12px; margin-top: 3px; display: none; }
+    .dropzone-hint  { color: #94a3b8; font-size: 12px; margin-top: 3px; }
+
+    .status-box {
+      margin-top: 14px; padding: 11px 14px;
+      border-radius: 8px; font-size: 13px; display: none;
+    }
+    .status-box.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; display: block; }
+    .status-box.error   { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; display: block; }
+
+    .generate-btn {
+      width: 100%; padding: 13px;
+      border-radius: 10px; border: none;
+      background: #1e3a5f; color: white;
+      font-weight: 700; font-size: 15px;
+      cursor: pointer; margin-top: 20px;
+      transition: background 0.2s;
+      font-family: inherit;
+    }
+    .generate-btn:hover:not(:disabled) { background: #1e4d82; }
+    .generate-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+    details { margin-bottom: 18px; }
+    summary {
+      font-size: 13px; font-weight: 700; color: #64748b;
+      cursor: pointer; user-select: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+
+    .mapping-table {
+      margin-top: 10px; background: #f8fafc;
+      border-radius: 8px; padding: 10px 14px;
+    }
+    .mapping-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px;
+    }
+    .mapping-row:last-child { border-bottom: none; }
+    .mapping-row.header { font-weight: 700; color: #475569; border-bottom: 2px solid #e2e8f0; }
+    .from    { color: #64748b; }
+    .to      { color: #1e3a5f; font-weight: 600; }
+    .removed { color: #ef4444; font-style: italic; }
+
+    .section { margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="top-bar">
+    <div class="top-bar-icon">📋</div>
+    <div>
+      <h1>Approval Memo Generator</h1>
+      <p>Upload export CSV → Download formatted approval memo</p>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- Step 1 -->
+    <div class="section">
+      <div class="step-label"><span class="badge">1</span> Memo Details</div>
+      <div class="row2">
+        <div>
+          <label class="field-label" for="memoId">Memo ID</label>
+          <input type="text" id="memoId" placeholder="e.g. 2026-01" />
+        </div>
+        <div>
+          <label class="field-label" for="memoDate">Date</label>
+          <input type="text" id="memoDate" placeholder="MM/DD/YYYY" />
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <label class="field-label" for="memoGeo">Geography</label>
+        <input type="text" id="memoGeo" placeholder="e.g. DC / RI / CH" />
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Step 2 -->
+    <div class="section">
+      <div class="step-label"><span class="badge">2</span> Upload Export CSV</div>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept=".csv" style="display:none" />
+        <div class="dropzone-icon"  id="dropIcon">📂</div>
+        <div class="dropzone-title" id="dropTitle">Drop your export CSV here</div>
+        <div class="dropzone-sub"   id="dropSub"></div>
+        <div class="dropzone-hint"  id="dropHint">CSV · click to browse</div>
+      </div>
+      <div class="status-box" id="statusBox"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Column mapping -->
+    <details>
+      <summary>Column mapping reference ▾</summary>
+      <div class="mapping-table">
+        <div class="mapping-row header"><span>Export CSV Column</span><span>→ Memo Column</span></div>
+        <div class="mapping-row"><span class="from">Entity Name</span><span class="to">Legal Name</span></div>
+        <div class="mapping-row"><span class="from">DBA</span><span class="to">DBA (Common Name)</span></div>
+        <div class="mapping-row"><span class="from">Proposal Title</span><span class="to">Proposal Title</span></div>
+        <div class="mapping-row"><span class="from">Awarded Amount</span><span class="to">Awarded Amount</span></div>
+        <div class="mapping-row"><span class="from">Grant Type</span><span class="to">Grant Type</span></div>
+        <div class="mapping-row"><span class="from">Legal Code</span><span class="to">Legal Code</span></div>
+        <div class="mapping-row"><span class="from">Grant Program Areas</span><span class="to">Program</span></div>
+        <div class="mapping-row"><span class="from">Tags</span><span class="to">Sub Program</span></div>
+        <div class="mapping-row"><span class="from">Fund</span><span class="to">Fund</span></div>
+        <div class="mapping-row"><span class="from">Comments (FORMATTED_TEXT)</span><span class="to">Comments</span></div>
+        <div class="mapping-row"><span class="removed">Grant Start</span><span class="removed">removed</span></div>
+      </div>
+    </details>
+
+    <button class="generate-btn" id="generateBtn" disabled>⬇ Generate Approval Memo</button>
+  </div>
+</div>
+
+<script>
+const COLUMN_MAP = [
+  { csv: "Entity Name",               memo: "Legal Name" },
+  { csv: "DBA",                       memo: "DBA (Common Name)" },
+  { csv: "Proposal Title",            memo: "Proposal Title" },
+  { csv: "Awarded Amount",            memo: "Awarded Amount" },
+  { csv: "Grant Type",                memo: "Grant Type" },
+  { csv: "Legal Code",                memo: "Legal Code" },
+  { csv: "Grant Program Areas",       memo: "Program" },
+  { csv: "Tags",                      memo: "Sub Program" },
+  { csv: "Fund",                      memo: "Fund" },
+  { csv: "Comments (FORMATTED_TEXT)", memo: "Comments" },
+];
+const MEMO_COLS  = COLUMN_MAP.map(m => m.memo);
+const BASE_CODES = ["Health", "Youth", "Other"];
+let parsedRows   = null;
+
+// ── CSV parser ────────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.split(/\r?\n/);
+  const nonEmpty = lines.filter(l => l.trim());
+  if (!nonEmpty.length) return [];
+  const headers = splitLine(nonEmpty[0]);
+  const rows = [];
+  for (let i = 1; i < nonEmpty.length; i++) {
+    const vals = splitLine(nonEmpty[i]);
+    const obj  = {};
+    headers.forEach((h, j) => { obj[h.trim()] = (vals[j] || "").trim(); });
+    rows.push(obj);
+  }
+  return rows;
+}
+
+function splitLine(line) {
+  const out = []; let cur = ""; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { out.push(cur); cur = ""; }
+    else { cur += ch; }
+  }
+  out.push(cur);
+  return out;
+}
+
+function parseAmount(v) {
+  if (v == null || v === "") return 0;
+  const n = parseFloat(String(v).replace(/[$,]/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+
+function colLetter(n) {
+  let s = "";
+  while (n > 0) { s = String.fromCharCode(65 + ((n-1) % 26)) + s; n = Math.floor((n-1)/26); }
+  return s;
+}
+
+function showStatus(type, msg) {
+  const b = document.getElementById("statusBox");
+  b.className   = "status-box " + type;
+  b.textContent = msg;
+}
+
+// ── File handling ─────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const rows    = parseCSV(e.target.result);
+      if (!rows.length) { showStatus("error", "File appears to be empty."); return; }
+
+      const cols    = Object.keys(rows[0]);
+      const missing = COLUMN_MAP.map(m => m.csv).filter(c => !cols.includes(c));
+      if (missing.length) {
+        showStatus("error", "Missing columns: " + missing.join(", "));
+        return;
+      }
+
+      const valid = rows.filter(r => parseAmount(r["Awarded Amount"]) > 0);
+      parsedRows  = rows;
+
+      const dz = document.getElementById("dropzone");
+      dz.classList.add("loaded");
+      document.getElementById("dropIcon").textContent   = "✅";
+      document.getElementById("dropTitle").textContent  = file.name;
+      document.getElementById("dropHint").style.display = "none";
+      const sub = document.getElementById("dropSub");
+      sub.style.display = "block";
+      sub.textContent   = valid.length.toLocaleString() + " grants with awarded amounts";
+
+      document.getElementById("generateBtn").disabled = false;
+      showStatus("success", "Loaded " + rows.length.toLocaleString() + " rows (" + valid.length.toLocaleString() + " with awarded amounts > $0)");
+    } catch(err) {
+      showStatus("error", "Could not read file: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+const dz = document.getElementById("dropzone");
+const fi = document.getElementById("fileInput");
+dz.addEventListener("click",     () => fi.click());
+fi.addEventListener("change",    e  => handleFile(e.target.files[0]));
+dz.addEventListener("dragover",  e  => { e.preventDefault(); dz.classList.add("dragover"); });
+dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
+dz.addEventListener("drop",      e  => {
+  e.preventDefault(); dz.classList.remove("dragover");
+  handleFile(e.dataTransfer.files[0]);
+});
+
+// ── Generate ──────────────────────────────────────────────────────────────────
+document.getElementById("generateBtn").addEventListener("click", async function() {
+  if (!parsedRows) return;
+  const btn = this;
+  btn.disabled    = true;
+  btn.textContent = "⏳ Building...";
+
+  try {
+    const memoId = document.getElementById("memoId").value.trim()  || "XXXX-XX";
+    const date   = document.getElementById("memoDate").value.trim() || "MM/DD/YYYY";
+    const geo    = document.getElementById("memoGeo").value.trim()  || "";
+
+    const rows = parsedRows.filter(r => parseAmount(r["Awarded Amount"]) > 0);
+
+    const extraCodes = [...new Set(
+      rows.map(r => (r["Legal Code"] || "").trim())
+          .filter(c => c && !BASE_CODES.includes(c))
+    )].sort();
+    const allCodes = [...BASE_CODES, ...extraCodes];
+
+    const DATA_START   = 5;
+    const DATA_END     = DATA_START + rows.length - 1;
+    const TOTAL_ROW    = DATA_END + 1;
+    const LC_LABEL_ROW = TOTAL_ROW + 1;
+    const LC_START     = LC_LABEL_ROW + 1;
+
+    const amtColIdx = MEMO_COLS.indexOf("Awarded Amount") + 1; // 1-based
+    const lcColIdx  = MEMO_COLS.indexOf("Legal Code")     + 1;
+    const ttlColIdx = MEMO_COLS.indexOf("Proposal Title") + 1;
+    const amtLetter = colLetter(amtColIdx);
+    const lcLetter  = colLetter(lcColIdx);
+
+    // ── Build workbook with ExcelJS ─────────────────────────────────────────
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Approval Memo");
+
+    // Auto-size helpers
+    // colMaxChars[i] tracks the longest content in each column (0-based)
+    const colMaxChars = new Array(MEMO_COLS.length).fill(0);
+    const CHAR_WIDTH  = 1.2;  // Excel width units per character (approx)
+    const MIN_WIDTH   = 8;
+    const MAX_WIDTH   = 80;
+    const LINE_HEIGHT = 15;   // pts per line of text at size 15
+    const MIN_HEIGHT  = 60;   // match original template row height
+
+    function trackWidth(colIdx, text) {
+      const len = String(text || "").length;
+      if (len > colMaxChars[colIdx]) colMaxChars[colIdx] = len;
+    }
+
+    // Estimate row height needed given text length and column width (in chars)
+    function estimateHeight(text, colWidthChars) {
+      if (!text) return MIN_HEIGHT;
+      const chars = String(text).length;
+      const lines = Math.ceil(chars / Math.max(colWidthChars, 1));
+      return Math.max(MIN_HEIGHT, lines * LINE_HEIGHT);
+    }
+
+    ws.columns = MEMO_COLS.map(() => ({ width: MIN_WIDTH })); // placeholder, updated below
+
+    const thin = { style: "thin" };
+    const allBorders = { top: thin, bottom: thin, left: thin, right: thin };
+    const yellowFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFF00" } };
+    const hdrFont    = { name: "Calibri", size: 15, bold: true };
+    const dataFont   = { name: "Calibri", size: 15 };
+    const boldFont   = { name: "Calibri", size: 15, bold: true };
+    const metaFont   = { name: "Calibri", size: 15 };
+
+    // Rows 1–3: meta (keep compact)
+    [[1, `Approval Memo: ${memoId}`], [2, `Geography: ${geo}`], [3, `Date: ${date}`]].forEach(([rn, txt]) => {
+      const row  = ws.getRow(rn);
+      row.height = 20;
+      const c    = row.getCell(1);
+      c.value    = txt;
+      c.font     = metaFont;
+    });
+
+    // Row 4: headers — seed column widths from header names
+    const hdrRow = ws.getRow(4);
+    MEMO_COLS.forEach((col, i) => {
+      trackWidth(i, col);
+      const c     = hdrRow.getCell(i + 1);
+      c.value     = col;
+      c.font      = hdrFont;
+      c.fill      = yellowFill;
+      c.border    = allBorders;
+      c.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    });
+
+    // Data rows — collect all cell values first to compute widths, then set heights
+    const cellValues = []; // cellValues[ri][ci] = string value
+    rows.forEach((row, ri) => {
+      const rowVals = [];
+      COLUMN_MAP.forEach(({ csv, memo }, ci) => {
+        let display;
+        if (memo === "Awarded Amount") {
+          display = parseAmount(row[csv]).toFixed(0);
+        } else {
+          const v = row[csv];
+          display = (!v || String(v).trim() === "") ? "" : String(v).trim();
+        }
+        trackWidth(ci, display);
+        rowVals.push(display);
+      });
+      cellValues.push(rowVals);
+    });
+
+    // Compute final column widths (capped)
+    const finalWidths = colMaxChars.map(n => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.ceil(n * CHAR_WIDTH) + 2)));
+
+    // Apply column widths
+    finalWidths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+    // Set header row height based on longest header word-wrapped in its column
+    hdrRow.height = Math.max(30, Math.max(...MEMO_COLS.map((col, i) => estimateHeight(col, finalWidths[i]))));
+
+    // Write data rows with auto height (min 60pt, grows for long content)
+    rows.forEach((row, ri) => {
+      const eRow = ws.getRow(DATA_START + ri);
+      let maxH   = MIN_HEIGHT;
+      COLUMN_MAP.forEach(({ csv, memo }, ci) => {
+        const c     = eRow.getCell(ci + 1);
+        c.font      = dataFont;
+        c.border    = allBorders;
+        c.alignment = { vertical: "top", wrapText: true };
+        if (memo === "Awarded Amount") {
+          c.value  = parseAmount(row[csv]);
+          c.numFmt = "$#,##0";
+        } else {
+          c.value = cellValues[ri][ci];
+        }
+        // Each wrapped line needs ~LINE_HEIGHT pts; minimum is MIN_HEIGHT
+        const textLen = String(cellValues[ri][ci] || "").length;
+        const colW    = finalWidths[ci];
+        const lines   = Math.max(1, Math.ceil(textLen / Math.max(colW, 1)));
+        const h       = Math.max(MIN_HEIGHT, lines * LINE_HEIGHT + 10);
+        if (h > maxH) maxH = h;
+      });
+      eRow.height = maxH;
+    });
+
+    // Grant Total
+    const totRow   = ws.getRow(TOTAL_ROW);
+    totRow.height  = MIN_HEIGHT;
+    const gtLabel  = totRow.getCell(ttlColIdx);
+    gtLabel.value  = "Grant Total:";
+    gtLabel.font   = boldFont;
+    const gtVal    = totRow.getCell(amtColIdx);
+    gtVal.value    = { formula: `SUM(${amtLetter}${DATA_START}:${amtLetter}${DATA_END})` };
+    gtVal.font     = boldFont;
+    gtVal.numFmt   = "$#,##0";
+
+    // Legal Code Totals
+    const lcLblRow   = ws.getRow(LC_LABEL_ROW);
+    lcLblRow.height  = MIN_HEIGHT;
+    const lcLbl      = lcLblRow.getCell(1);
+    lcLbl.value      = "Legal Code Totals";
+    lcLbl.font       = { name: "Calibri", size: 15 };
+    lcLbl.alignment  = { horizontal: "right", wrapText: true };
+
+    allCodes.forEach((code, i) => {
+      const r    = ws.getRow(LC_START + i);
+      r.height   = MIN_HEIGHT;
+      const lbl  = r.getCell(1);
+      lbl.value  = code;
+      lbl.font   = boldFont;
+      lbl.alignment = { horizontal: "right", wrapText: true };
+      const val  = r.getCell(2);
+      val.value  = { formula: `SUMIF(${lcLetter}:${lcLetter},"${code}",${amtLetter}:${amtLetter})` };
+      val.font   = boldFont;
+      val.numFmt = "$#,##0";
+    });
+
+    // Download
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob   = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement("a");
+    a.href       = url;
+    a.download   = `Approval_Memo_${memoId.replace(/\s/g,"_")}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    showStatus("success", `✓ Generated memo with ${rows.length.toLocaleString()} grants and ${allCodes.length} legal code categories.`);
+  } catch(err) {
+    showStatus("error", "Error: " + err.message);
+  }
+
+  btn.disabled    = false;
+  btn.textContent = "⬇ Generate Approval Memo";
+});
+</script>
+</body>
+</html>
