@@ -361,7 +361,7 @@ document.getElementById("generateBtn").addEventListener("click", async function(
     const MIN_WIDTH   = 8;
     const MAX_WIDTH   = 80;
     const LINE_HEIGHT = 15;   // pts per line of text at size 15
-    const MIN_HEIGHT  = 20;
+    const MIN_HEIGHT  = 60;   // match original template row height
 
     function trackWidth(colIdx, text) {
       const len = String(text || "").length;
@@ -386,7 +386,7 @@ document.getElementById("generateBtn").addEventListener("click", async function(
     const boldFont   = { name: "Calibri", size: 15, bold: true };
     const metaFont   = { name: "Calibri", size: 15 };
 
-    // Rows 1–3: meta
+    // Rows 1–3: meta (keep compact)
     [[1, `Approval Memo: ${memoId}`], [2, `Geography: ${geo}`], [3, `Date: ${date}`]].forEach(([rn, txt]) => {
       const row  = ws.getRow(rn);
       row.height = 20;
@@ -414,7 +414,7 @@ document.getElementById("generateBtn").addEventListener("click", async function(
       COLUMN_MAP.forEach(({ csv, memo }, ci) => {
         let display;
         if (memo === "Awarded Amount") {
-          display = parseAmount(row[csv]).toFixed(2);
+          display = parseAmount(row[csv]).toFixed(0);
         } else {
           const v = row[csv];
           display = (!v || String(v).trim() === "") ? "" : String(v).trim();
@@ -434,7 +434,7 @@ document.getElementById("generateBtn").addEventListener("click", async function(
     // Set header row height based on longest header word-wrapped in its column
     hdrRow.height = Math.max(30, Math.max(...MEMO_COLS.map((col, i) => estimateHeight(col, finalWidths[i]))));
 
-    // Write data rows with auto height
+    // Write data rows with auto height (min 60pt, grows for long content)
     rows.forEach((row, ri) => {
       const eRow = ws.getRow(DATA_START + ri);
       let maxH   = MIN_HEIGHT;
@@ -445,11 +445,15 @@ document.getElementById("generateBtn").addEventListener("click", async function(
         c.alignment = { vertical: "top", wrapText: true };
         if (memo === "Awarded Amount") {
           c.value  = parseAmount(row[csv]);
-          c.numFmt = "$#,##0.00";
+          c.numFmt = "$#,##0";
         } else {
           c.value = cellValues[ri][ci];
         }
-        const h = estimateHeight(cellValues[ri][ci], finalWidths[ci]);
+        // Each wrapped line needs ~LINE_HEIGHT pts; minimum is MIN_HEIGHT
+        const textLen = String(cellValues[ri][ci] || "").length;
+        const colW    = finalWidths[ci];
+        const lines   = Math.max(1, Math.ceil(textLen / Math.max(colW, 1)));
+        const h       = Math.max(MIN_HEIGHT, lines * LINE_HEIGHT + 10);
         if (h > maxH) maxH = h;
       });
       eRow.height = maxH;
@@ -464,7 +468,7 @@ document.getElementById("generateBtn").addEventListener("click", async function(
     const gtVal    = totRow.getCell(amtColIdx);
     gtVal.value    = { formula: `SUM(${amtLetter}${DATA_START}:${amtLetter}${DATA_END})` };
     gtVal.font     = boldFont;
-    gtVal.numFmt   = "$#,##0.00";
+    gtVal.numFmt   = "$#,##0";
 
     // Legal Code Totals
     const lcLblRow   = ws.getRow(LC_LABEL_ROW);
@@ -484,7 +488,7 @@ document.getElementById("generateBtn").addEventListener("click", async function(
       const val  = r.getCell(2);
       val.value  = { formula: `SUMIF(${lcLetter}:${lcLetter},"${code}",${amtLetter}:${amtLetter})` };
       val.font   = boldFont;
-      val.numFmt = "$#,##0.00";
+      val.numFmt = "$#,##0";
     });
 
     // Download
